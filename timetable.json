@@ -1,0 +1,13 @@
+[
+  {"day": "Monday",    "start": "09:00", "end": "10:00", "subject": "Core 1 - Data Structures", "room": "B204"},
+  {"day": "Monday",    "start": "10:00", "end": "11:00", "subject": "Core 2 - Mathematics",     "room": "A101"},
+  {"day": "Monday",    "start": "11:15", "end": "12:15", "subject": "Elective 1 - AI",          "room": "C305"},
+  {"day": "Tuesday",   "start": "10:00", "end": "11:00", "subject": "Core 3 - DBMS",            "room": "B204"},
+  {"day": "Tuesday",   "start": "11:15", "end": "12:15", "subject": "Elective 2 - Cloud",       "room": "C210"},
+  {"day": "Wednesday", "start": "09:00", "end": "10:00", "subject": "Core 1 - Data Structures", "room": "B204"},
+  {"day": "Wednesday", "start": "14:00", "end": "15:00", "subject": "Extra - Communication",    "room": "D001"},
+  {"day": "Thursday",  "start": "09:00", "end": "10:00", "subject": "Core 2 - Mathematics",     "room": "A101"},
+  {"day": "Thursday",  "start": "10:00", "end": "11:00", "subject": "Elective 1 - AI",          "room": "C305"},
+  {"day": "Friday",    "start": "10:00", "end": "11:00", "subject": "Core 3 - DBMS",            "room": "B204"},
+  {"day": "Friday",    "start": "11:15", "end": "12:15", "subject": "Elective 2 - Cloud",       "room": "C210"}
+]
