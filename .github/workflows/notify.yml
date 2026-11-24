@@ -2,8 +2,9 @@ name: Timetable notifier
 
 on:
   schedule:
-    # 15:30 UTC = 21:00 IST
-    - cron: "30 15 * * *"
+    - cron: "30 15 * * *"   # 21:00 IST - main run (prepares tomorrow)
+    - cron: "30 16 * * *"   # 22:00 IST - backup if the main run was skipped
+    - cron: "30 0 * * *"    # 06:00 IST - last-chance catch-up (prepares today)
   workflow_dispatch:   # lets you run it manually from the Actions tab
 
 jobs:

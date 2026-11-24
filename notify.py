@@ -1,10 +1,12 @@
 """
 TimeNudge - timetable notifier using ntfy.sh
 
-Run once a day at 9 PM IST. It:
-  1. Checks holidays.json. If tomorrow is a holiday, it sends a holiday
+Normally runs at 9 PM IST and prepares TOMORROW. If GitHub starts the job
+late (before CUTOFF_HOUR the next day), it catches up and prepares TODAY
+instead, so a delayed run never skips a day. It:
+  1. Checks holidays.json. If the target day is a holiday, it sends a holiday
      notice and stops (no class messages).
-  2. Otherwise sends tomorrow's class list immediately.
+  2. Otherwise sends that day's class list (once; repeats are skipped).
   3. Schedules one reminder per class, REMINDER_MINUTES_BEFORE minutes before
      it starts. ntfy holds these and delivers them on time.
 
@@ -26,6 +28,7 @@ import requests
 IST = ZoneInfo("Asia/Kolkata")
 NTFY_SERVER = "https://ntfy.sh"
 REMINDER_MINUTES_BEFORE = 10
+CUTOFF_HOUR = 18  # runs before 6 PM IST prepare TODAY, later runs prepare TOMORROW
 BASE = Path(__file__).parent
 TIMETABLE_FILE = BASE / "timetable.json"
 HOLIDAYS_FILE = BASE / "holidays.json"
@@ -102,6 +105,28 @@ def get_scheduled(topic: str) -> set[tuple]:
         return set()
 
 
+def pick_target(now: datetime, date_arg: str | None) -> tuple[datetime, str]:
+    """Return (target day, 'Today'/'Tomorrow')."""
+    if date_arg:  # testing: pretend today is date_arg
+        base = datetime.strptime(date_arg, "%Y-%m-%d").replace(tzinfo=IST)
+        return base + timedelta(days=1), "Tomorrow"
+    if now.hour < CUTOFF_HOUR:
+        return now, "Today"
+    return now + timedelta(days=1), "Tomorrow"
+
+
+def recent_titles(topic: str) -> list[str]:
+    """Titles of messages delivered in the last 12 hours (to skip repeats)."""
+    try:
+        r = requests.get(f"{NTFY_SERVER}/{topic}/json",
+                         params={"poll": "1", "since": "12h"}, timeout=15)
+        r.raise_for_status()
+        return [json.loads(l).get("title") or "" for l in r.text.splitlines() if l.strip()]
+    except Exception as e:  # noqa: BLE001
+        print(f"(Could not check recent messages: {e})")
+        return []
+
+
 def send(topic: str, title: str, message: str, tags: str = "", priority: str = "",
          delay_ts: int | None = None, dry_run: bool = False) -> None:
     headers = {"Title": ascii_safe(title)}
@@ -129,41 +154,47 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--date", help="Pretend today is YYYY-MM-DD")
+    parser.add_argument("--force", action="store_true", help="Resend even if already sent")
     args = parser.parse_args()
 
     topic = os.environ.get("NTFY_TOPIC", "dry-run-topic")
     if not args.dry_run and "NTFY_TOPIC" not in os.environ:
         raise SystemExit("Set the NTFY_TOPIC environment variable.")
 
-    today = (datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=IST)
-             if args.date else datetime.now(IST))
-    tomorrow = today + timedelta(days=1)
-    day_name = tomorrow.strftime("%A")
-    nice_date = tomorrow.strftime("%a %d %b")
+    now = datetime.now(IST)
+    target, label = pick_target(now, args.date)
+    day_name = target.strftime("%A")
+    nice_date = target.strftime("%a %d %b")
+    seen = [] if (args.dry_run or args.force) else recent_titles(topic)
 
     # 1) Holiday?
-    holiday = get_holiday(tomorrow.strftime("%Y-%m-%d"))
+    holiday = get_holiday(target.strftime("%Y-%m-%d"))
     if holiday:
-        send(topic, f"Holiday tomorrow ({nice_date})",
-             f"{holiday}\nNo classes. Enjoy!", tags="palm_tree", dry_run=args.dry_run)
+        if not any(f"({nice_date})" in t for t in seen):
+            send(topic, f"Holiday {label.lower()} ({nice_date})",
+                 f"{holiday}\nNo classes. Enjoy!", tags="palm_tree", dry_run=args.dry_run)
         return
 
     classes = load_classes_for(day_name)
     if not classes:
-        send(topic, f"No classes tomorrow ({day_name})",
-             "Nothing scheduled. Enjoy!", tags="tada", dry_run=args.dry_run)
+        if not any(f"({nice_date})" in t for t in seen):
+            send(topic, f"No classes {label.lower()} ({nice_date})",
+                 "Nothing scheduled. Enjoy!", tags="tada", dry_run=args.dry_run)
         return
 
-    # 2) Evening summary, sent now
-    send(topic, f"Tomorrow, {nice_date}: {len(classes)} classes",
-         format_summary(classes), tags="calendar", dry_run=args.dry_run)
+    # 2) Class list, sent once
+    key = f"{nice_date}: {len(classes)} classes"
+    if any(key in t for t in seen):
+        print(f"Skipped summary (already sent): {key}")
+    else:
+        send(topic, f"{label}, {key}", format_summary(classes),
+             tags="calendar", dry_run=args.dry_run)
 
     # 3) One reminder per class, REMINDER_MINUTES_BEFORE minutes before it starts
     already = set() if args.dry_run else get_scheduled(topic)
-    now = datetime.now(IST)
     for c in classes:
         h, m = map(int, c["start"].split(":"))
-        start = tomorrow.replace(hour=h, minute=m, second=0, microsecond=0)
+        start = target.replace(hour=h, minute=m, second=0, microsecond=0)
         remind_at = start - timedelta(minutes=REMINDER_MINUTES_BEFORE)
         ts = int(remind_at.timestamp())
         title = f"Class in {REMINDER_MINUTES_BEFORE} min: {pretty_subject(c['subject'])}"
