@@ -2,9 +2,12 @@ name: Timetable notifier
 
 on:
   schedule:
-    - cron: "30 15 * * *"   # 21:00 IST - main run (prepares tomorrow)
-    - cron: "30 16 * * *"   # 22:00 IST - backup if the main run was skipped
-    - cron: "30 0 * * *"    # 06:00 IST - last-chance catch-up (prepares today)
+    # Several runs a day. Each one queues messages with ntfy up to 3 days ahead,
+    # and repeat runs skip anything already queued, so lateness doesn't matter.
+    - cron: "30 0 * * *"    # 06:00 IST
+    - cron: "30 6 * * *"    # 12:00 IST
+    - cron: "30 10 * * *"   # 16:00 IST
+    - cron: "30 14 * * *"   # 20:00 IST
   workflow_dispatch:   # lets you run it manually from the Actions tab
 
 jobs:
