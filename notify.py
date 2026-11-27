@@ -63,29 +63,27 @@ def pretty_subject(name: str) -> str:
     return f"Elective {m.group(1)}: {m.group(2)}" if m else name
 
 
-def class_lines(c: dict) -> list[str]:
-    """Lines under the time: subject, professor, then 'Theory | Room'."""
-    lines = [pretty_subject(c["subject"])]
-    if c.get("professor"):
-        lines.append(c["professor"])
-    tail = " | ".join(x for x in [c.get("kind"), c.get("room")] if x)
-    if tail:
-        lines.append(tail)
-    return lines
+def detail_line(c: dict) -> str:
+    return " | ".join(x for x in [c.get("kind"), c.get("room")] if x)
 
 
 def format_summary(classes: list[dict]) -> str:
     last_end = max(c["end"] for c in classes)
     lines = [f"{len(classes)} classes  |  {classes[0]['start']} to {last_end}", ""]
     for i, c in enumerate(classes, start=1):
-        lines.append(f"{i}. {c['start']}-{c['end']}  ")
-        lines.extend("    " + x for x in class_lines(c))
-        lines.append("")
-    return "\n".join(lines).rstrip()
+        lines.append(f"{i}. {c['start']}-{c['end']}  {pretty_subject(c['subject'])}")
+        d = detail_line(c)
+        if d:
+            lines.append(f"     {d}")
+    return "\n".join(lines)
 
 
 def format_single(c: dict) -> str:
-    return "\n".join([f"{c['start']}-{c['end']}  "] + ["    " + x for x in class_lines(c)])
+    lines = [f"{c['start']}-{c['end']}", pretty_subject(c["subject"])]
+    d = detail_line(c)
+    if d:
+        lines.append(d)
+    return "\n".join(lines)
 
 
 # -------------------------------------------------------------- ntfy
