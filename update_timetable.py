@@ -39,7 +39,6 @@ SUBJECTS = {
     ],
     "EXTRA": [
         "Career Readiness for Modern Workspace Theory",
-        "2024-2028 Entrepreneurship Track, Research Track & Industry Track Theory"
     ],
     "ELECTIVES": [
         "AIML-Elective-1(Agentic AI) Group-A",
@@ -48,9 +47,9 @@ SUBJECTS = {
 }
 ALL_SUBJECTS = [s for group in SUBJECTS.values() for s in group]
 
-# Models are tried in this order (names change over time; override with
-# GEMINI_MODEL in your .env if one stops working).
-MODELS = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+# Models are tried in order. Override with GEMINI_MODEL in .env if needed.
+# Verified against Google's Gemini docs. Image reading works on all of these.
+MODELS = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash"]
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -142,12 +141,15 @@ Rules:
   first period and the end time of the last period.
 - Use 24-hour time in HH:MM format (e.g. 14:00, not 2 PM).
 - "day" must be a full English weekday name (Monday ... Sunday).
+- "professor" is the lecturer's name shown for that class (keep titles like
+  "Dr." or "Prof." as written). Use an empty string if none is shown.
 - "room" is the room/lab number if shown, otherwise an empty string.
 - Include every occurrence across the whole week.
 
 Return ONLY a JSON array, no other text. Each item:
 {{"day": "Monday", "start": "09:00", "end": "10:00",
-  "subject": "<canonical name>", "kind": "Theory", "room": "B204"}}
+  "subject": "<canonical name>", "professor": "Dr. Name", "kind": "Theory",
+  "room": "B204"}}
 """
 
 
@@ -202,7 +204,9 @@ def clean_entries(raw: list[dict]) -> list[dict]:
                 raise ValueError("end before start")
             kind = "Lab" if str(item.get("kind", "")).strip().lower().startswith("lab") else "Theory"
             out.append({"day": day, "start": times[0], "end": times[1],
-                        "subject": subject, "kind": kind,
+                        "subject": subject,
+                        "professor": str(item.get("professor", "") or "").strip(),
+                        "kind": kind,
                         "room": str(item.get("room", "") or "").strip()})
         except (KeyError, AttributeError, ValueError):
             print(f"  Skipped an unreadable row: {item}")
@@ -252,7 +256,8 @@ def preview(entries: list[dict]) -> None:
         print(f"\n{day}")
         for i, e in enumerate(todays, 1):
             room = f" ({e['room']})" if e["room"] else ""
-            print(f"  {i}. {e['start']}-{e['end']}  {e['subject']} [{e['kind']}]{room}")
+            prof = f" - {e['professor']}" if e.get("professor") else ""
+            print(f"  {i}. {e['start']}-{e['end']}  {e['subject']}{prof} [{e['kind']}]{room}")
     missing = [s for s in ALL_SUBJECTS if s not in {e["subject"] for e in entries}]
     print("\nSubjects with no classes found:", ", ".join(missing) if missing else "none")
 
